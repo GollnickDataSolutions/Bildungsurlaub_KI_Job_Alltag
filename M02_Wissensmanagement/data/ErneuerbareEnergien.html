@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EE-Installationen Deutschland (1990-2025)</title>
+    <!-- Lade Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Konfigurieren des Fonts und globaler Stil */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117; /* Dunkler Hintergrund */
+            color: #e5e7eb; /* Helle Schrift */
+            overflow-x: hidden;
+        }
+
+        /* Stil für die dynamischen Balkenübergänge */
+        .bar-item {
+            /* Kürzere Dauer für 1-Jahres-Schritte */
+            transition: all 300ms cubic-bezier(0.8, 0.2, 0, 1.0); 
+        }
+        .bar-fill {
+            transition: width 300ms ease-in-out; /* Spezieller Übergang für die Breite */
+        }
+
+        /* Stil für das Canvas-Diagramm */
+        #mw-curve-chart-container {
+            position: relative;
+            background-color: #21262d;
+            border-radius: 0.75rem; /* rounded-xl */
+            padding: 1rem;
+        }
+        /* Canvas muss positioniert sein, um den Tooltip relativ dazu zu positionieren */
+        #mw-curve-chart {
+            position: relative;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto bg-[#161b22] p-6 md:p-10 rounded-xl shadow-2xl">
+        
+        <!-- Titel und Header-Informationen -->
+        <h1 class="text-3xl md:text-4xl font-extrabold text-white mb-2">
+            Erneuerbare Energien Installationen (Deutschland)
+        </h1>
+        <p class="text-md md:text-xl text-gray-400 mb-6">
+            Anteil der Energieträger an der gesamten installierten regenerativen Leistung (1990–2025)
+        </p>
+
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8">
+            <!-- Anzeige des Jahres -->
+            <div class="order-2 md:order-1 mt-4 md:mt-0">
+                <p class="text-lg font-semibold text-gray-400">Aktuelles Jahr:</p>
+                <div id="year-display" class="text-6xl md:text-8xl font-black text-yellow-400 transition-all duration-300">
+                    1990
+                </div>
+            </div>
+            
+            <!-- Anzeige der Gesamtleistung -->
+            <div class="order-1 md:order-2 text-right">
+                <p class="text-sm font-semibold text-gray-400">Gesamt installierte Leistung (MW):</p>
+                <div id="total-mw-display" class="text-2xl md:text-3xl font-bold text-teal-400 transition-all duration-300">
+                    4.443
+                </div>
+            </div>
+        </div>
+
+        <!-- NEUE GRID-STRUKTUR: Balkendiagramm links, Canvas-Diagramm rechts -->
+        <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+            
+            <!-- 1. LINKER TEIL: Dynamische Ranking-Balken -->
+            <div>
+                <h2 class="text-xl font-bold text-gray-300 mb-4">Aktuelles Ranking (Anteil in %)</h2>
+                <div id="bar-container" class="space-y-4">
+                    <!-- Die Balken werden hier dynamisch eingefügt -->
+                </div>
+            </div>
+            
+            <!-- 2. RECHTER TEIL: Gestapeltes Flächendiagramm (Canvas) -->
+            <div>
+                 <h2 class="text-xl font-bold text-gray-300 mb-4">Kumulierte Gesamtleistung (MW) - Verlauf</h2>
+                 <div id="mw-curve-chart-container" class="w-full h-64">
+                      <canvas id="mw-curve-chart" class="w-full h-full"></canvas>
+                 </div>
+            </div>
+        </div>
+
+        <!-- Tooltip für Canvas-Interaktion (bleibt außerhalb des Grids, aber sichtbar) -->
+        <div id="chart-tooltip" 
+             class="absolute z-50 p-2 text-xs text-white bg-gray-800 rounded-lg pointer-events-none opacity-0 transition-opacity duration-150 shadow-xl border border-gray-700" 
+             style="min-width: 150px; transform: translate(-50%, -100%);">
+        </div>
+
+        <!-- Steuerung (Play, Stop, Reset Buttons) -->
+        <div class="mt-8 flex justify-center space-x-4">
+            <button id="play-button" class="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow-lg transition duration-150 transform hover:scale-105" onclick="startAnimation()">
+                ▶️ Starten / Weiter
+            </button>
+            <button id="stop-button" class="px-6 py-3 bg-yellow-600 hover:bg-yellow-700 text-white font-bold rounded-lg shadow-lg transition duration-150 transform hover:scale-105" onclick="stopAnimation()" disabled>
+                ⏸️ Stopp
+            </button>
+            <button id="reset-button" class="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg shadow-lg transition duration-150 transform hover:scale-105" onclick="resetChart()">
+                ⏮️ Neustarten
+            </button>
+        </div>
+
+        <div class="mt-10 pt-6 border-t border-gray-700">
+            <p class="text-sm text-gray-500">* Die Daten zwischen den Stützpunkten wurden linear interpoliert, um jährliche Schritte darzustellen.</p>
+        </div>
+
+    </div>
+
+    <script>
+        // Datenstruktur: Bekannte Stützpunkte für die Interpolation
+        const rawData = [
+            { year: 1990, totalMW: 4443, data: { Wasserkraft: 89.6, WindOnshore: 1.2, WindOffshore: 0.0, Photovoltaik: 0.05, Biomasse: 9.2, Geothermie: 0.0 } },
+            { year: 1995, totalMW: 5969, data: { Wasserkraft: 72.8, WindOnshore: 18.8, WindOffshore: 0.0, Photovoltaik: 0.3, Biomasse: 8.1, Geothermie: 0.0 } },
+            { year: 2000, totalMW: 12038, data: { Wasserkraft: 40.1, WindOnshore: 50.6, WindOffshore: 0.0, Photovoltaik: 0.9, Biomasse: 8.3, Geothermie: 0.0 } },
+            { year: 2005, totalMW: 28453, data: { Wasserkraft: 18.3, WindOnshore: 64.1, WindOffshore: 0.0, Photovoltaik: 7.2, Biomasse: 10.4, Geothermie: 0.0 } },
+            { year: 2010, totalMW: 56546, data: { Wasserkraft: 9.6, WindOnshore: 47.4, WindOffshore: 0.1, Photovoltaik: 31.8, Biomasse: 11.0, Geothermie: 0.01 } },
+            { year: 2015, totalMW: 97856, data: { Wasserkraft: 5.7, WindOnshore: 42.2, WindOffshore: 3.4, Photovoltaik: 40.1, Biomasse: 8.6, Geothermie: 0.03 } },
+            { year: 2020, totalMW: 132384, data: { Wasserkraft: 4.1, WindOnshore: 41.0, WindOffshore: 5.9, Photovoltaik: 41.1, Biomasse: 7.8, Geothermie: 0.04 } },
+            { year: 2021, totalMW: 139870, data: { Wasserkraft: 3.9, WindOnshore: 40.0, WindOffshore: 5.6, Photovoltaik: 43.0, Biomasse: 7.5, Geothermie: 0.04 } },
+            { year: 2022, totalMW: 150000, data: { Wasserkraft: 3.7, WindOnshore: 38.7, WindOffshore: 5.5, Photovoltaik: 45.1, Biomasse: 7.0, Geothermie: 0.04 } },
+            { year: 2023, totalMW: 168666, data: { Wasserkraft: 3.3, WindOnshore: 36.2, WindOffshore: 5.0, Photovoltaik: 49.2, Biomasse: 6.3, Geothermie: 0.03 } },
+            { year: 2024, totalMW: 188782, data: { Wasserkraft: 2.9, WindOnshore: 33.7, WindOffshore: 4.9, Photovoltaik: 52.9, Biomasse: 5.6, Geothermie: 0.03 } },
+            { year: 2025, totalMW: 203700, data: { Wasserkraft: 2.7, WindOnshore: 32.7, WindOffshore: 4.5, Photovoltaik: 55.0, Biomasse: 5.1, Geothermie: 0.03 } },
+        ];
+
+        // Konfiguration der Energieträger (Farben und Anzeigenamen)
+        // Die Hex-Codes stellen sicher, dass die Farben im Canvas exakt mit den Tailwind-Klassen der Balken übereinstimmen.
+        const sourceConfig = {
+            Wasserkraft: { label: 'Wasserkraft', color: 'bg-blue-600', hex: '#2563eb' },
+            WindOnshore: { label: 'Wind Onshore', color: 'bg-green-600', hex: '#059669' },
+            WindOffshore: { label: 'Wind Offshore', color: 'bg-indigo-600', hex: '#4f46e5' },
+            // ANGEPASST: Wechsel von Gelb-500 zu Orange-500, um eine deutlichere Unterscheidung
+            // im Canvas-Diagramm zu gewährleisten und die vom Nutzer gewünschte 'gelb/orange'-Farbe zu fixieren.
+            Photovoltaik: { label: 'Photovoltaik (PV)', color: 'bg-orange-500', hex: '#f97316' }, 
+            Biomasse: { label: 'Biomasse', color: 'bg-teal-600', hex: '#0d9488' },
+            Geothermie: { label: 'Geothermie', color: 'bg-purple-600', hex: '#9333ea' },
+        };
+
+        const container = document.getElementById('bar-container');
+        const yearDisplay = document.getElementById('year-display');
+        const totalMwDisplay = document.getElementById('total-mw-display');
+        const chartTooltip = document.getElementById('chart-tooltip');
+        
+        const playButton = document.getElementById('play-button');
+        const stopButton = document.getElementById('stop-button');
+        const resetButton = document.getElementById('reset-button');
+        
+        // Canvas-Elemente für das Liniendiagramm
+        const canvas = document.getElementById('mw-curve-chart');
+        const ctx = canvas.getContext('2d');
+
+        // Verzögerung zwischen den interpolierten Jahren in Millisekunden (jetzt kürzer)
+        const YEAR_DELAY_MS = 300; 
+
+        let yearIndex = 0;
+        let isAnimating = false;
+        let animationFrame = null;
+        let timeoutHandle = null;
+        let animatedData = [];
+
+        // Globale Metriken für Canvas-Zeichnung und Interaktivität
+        let chartMetrics = {
+            scaleX: 0,
+            scaleY: 0,
+            padding: 20,
+            width: 0,
+            height: 0,
+            maxMw: 0,
+            sourceKeys: Object.keys(sourceConfig),
+            getY: (mwValue, height, padding, scaleY) => height - padding - (mwValue * scaleY),
+            getX: (index, padding, scaleX) => padding + index * scaleX,
+        };
+
+
+        /**
+         * Führt eine lineare Interpolation der Daten zwischen den bekannten Jahresdaten durch.
+         * @param {Array<Object>} data - Das Rohdaten-Array.
+         * @returns {Array<Object>} - Das interpolierte Daten-Array (1990 bis 2025 in 1-Jahres-Schritten).
+         */
+        function interpolateData(data) {
+            const interpolated = [];
+            
+            for (let i = 0; i < data.length - 1; i++) {
+                const start = data[i];
+                const end = data[i + 1];
+                const startYear = start.year;
+                const endYear = end.year;
+                const yearDiff = endYear - startYear;
+                
+                // Füge das Startjahr hinzu, wenn es noch nicht das letzte interpolierte Jahr ist
+                if (interpolated.length === 0 || interpolated[interpolated.length - 1].year !== startYear) {
+                     interpolated.push(start);
+                }
+
+                // Interpoliere für jedes Jahr zwischen startYear und endYear
+                for (let year = startYear + 1; year < endYear; year++) {
+                    const fraction = (year - startYear) / yearDiff;
+                    const newEntry = {
+                        year: year,
+                        // MW und Prozentwerte linear interpolieren
+                        totalMW: Math.round(start.totalMW + (end.totalMW - start.totalMW) * fraction),
+                        data: {}
+                    };
+
+                    const allKeys = Object.keys(sourceConfig); // Verwende alle bekannten Schlüssel
+                    for (const key of allKeys) {
+                        const startValue = start.data[key] || 0;
+                        const endValue = end.data[key] || 0;
+
+                        newEntry.data[key] = startValue + (endValue - startValue) * fraction;
+                    }
+
+                    interpolated.push(newEntry);
+                }
+                
+                // Füge das Endjahr hinzu, wenn es das letzte Element ist
+                if (i === data.length - 2) {
+                     interpolated.push(end);
+                }
+            }
+            return interpolated;
+        }
+
+        /**
+         * Erstellt den HTML-Code für einen einzelnen Balken.
+         * @param {string} key - Der interne Schlüssel (z.B. 'Photovoltaik').
+         * @param {number} percentage - Der prozentuale Anteil (0 bis 100).
+         * @param {number} rank - Die aktuelle Rangfolge (1, 2, 3...).
+         * @returns {string} Der generierte HTML-String.
+         */
+        function createBarHtml(key, percentage, rank) {
+            const config = sourceConfig[key];
+            const widthPercent = Math.max(percentage, 0.1); // Mindestbreite für Sichtbarkeit kleiner Werte
+            // Verwende toFixed(1) für alle Werte 
+            const formattedPercentage = percentage.toFixed(1) + '%'; 
+            
+            return `
+                <div id="bar-${key}" data-key="${key}" class="bar-item flex items-center h-12 md:h-14 relative p-2 md:p-3 bg-[#21262d] rounded-lg shadow-md" style="order: ${rank};">
+                    
+                    <!-- Füllung des Balkens, nutzt transition: width -->
+                    <div class="bar-fill absolute inset-0 rounded-lg ${config.color} opacity-80" 
+                         style="width: ${widthPercent}%;">
+                    </div>
+
+                    <!-- Inhalt (Rang, Label, Prozentwert) über dem Balken -->
+                    <div class="z-10 flex justify-between w-full font-bold">
+                        <!-- Rang -->
+                        <span class="text-xs md:text-sm w-8 text-center bg-white text-gray-900 rounded-full flex items-center justify-center mr-3 font-extrabold shadow">
+                            ${rank}
+                        </span>
+
+                        <!-- Label (Energieträger) -->
+                        <span class="text-sm md:text-base flex-grow text-white truncate mr-4">
+                            ${config.label}
+                        </span>
+
+                        <!-- Prozentwert -->
+                        <span class="text-sm md:text-base text-white ml-auto">
+                            ${formattedPercentage}
+                        </span>
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * Zeichnet die kumulierte Gesamtinstallationsleistung (MW) als gestapeltes Flächendiagramm auf das Canvas.
+         * @param {number} currentIndex - Der Index des letzten zu zeichnenden Datenpunkts.
+         */
+        function drawTotalMwCurve(currentIndex) {
+            if (!canvas || !ctx || animatedData.length === 0) return;
+            
+            const container = document.getElementById('mw-curve-chart-container');
+            const width = container.offsetWidth;
+            const height = container.offsetHeight;
+            
+            canvas.width = width;
+            canvas.height = height;
+
+            ctx.clearRect(0, 0, width, height);
+
+            const padding = 20;
+            const chartWidth = width - 2 * padding;
+            const chartHeight = height - 2 * padding;
+
+            const maxMw = animatedData[animatedData.length - 1].totalMW;
+            
+            const scaleX = chartWidth / (animatedData.length - 1);
+            const scaleY = chartHeight / (maxMw * 1.1); 
+            
+            const getY = (mwValue) => height - padding - (mwValue * scaleY);
+            const getX = (index) => padding + index * scaleX;
+
+            // Globale Metriken für Interaktivität speichern
+            chartMetrics.width = width;
+            chartMetrics.height = height;
+            chartMetrics.maxMw = maxMw;
+            chartMetrics.scaleX = scaleX;
+            chartMetrics.scaleY = scaleY;
+            chartMetrics.padding = padding;
+
+            // --- 1. Y-Achsen-Hilfslinien (Gitter) zeichnen ---
+            ctx.strokeStyle = '#374151'; // gray-700
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+
+            const stepMw = 50000;
+            for (let mw = 0; mw <= maxMw; mw += stepMw) {
+                const y = getY(mw);
+                if (y > padding && y < height - padding) {
+                    ctx.beginPath();
+                    ctx.moveTo(padding, y);
+                    ctx.lineTo(width - padding, y);
+                    ctx.stroke();
+                    
+                    ctx.fillStyle = '#6b7280'; // gray-500
+                    ctx.font = '12px Inter';
+                    ctx.textAlign = 'left';
+                    ctx.fillText((mw / 1000).toLocaleString('de-DE') + ' GW', padding + 5, y - 5);
+                }
+            }
+            ctx.setLineDash([]);
+
+            // --- 2. Vorbereiten der gestapelten Daten ---
+            const sourceKeys = chartMetrics.sourceKeys;
+            const stackData = {};
+            for(const key of sourceKeys) {
+                stackData[key] = [];
+            }
+            
+            for (let i = 0; i <= currentIndex; i++) {
+                const yearData = animatedData[i];
+                let currentStackMw = 0;
+                
+                for (const key of sourceKeys) {
+                    const percentage = yearData.data[key] || 0;
+                    const absoluteMw = yearData.totalMW * (percentage / 100);
+                    
+                    const yTop = getY(currentStackMw + absoluteMw);
+                    stackData[key].push({ x: getX(i), y: yTop });
+                    
+                    currentStackMw += absoluteMw;
+                }
+            }
+
+            // --- 3. Zeichnen der gestapelten Flächen ---
+            let yBottomPath = [];
+
+            for (let k = sourceKeys.length - 1; k >= 0; k--) {
+                const key = sourceKeys[k];
+                const colorHex = sourceConfig[key].hex;
+                const currentPath = stackData[key];
+                
+                ctx.fillStyle = colorHex;
+                ctx.beginPath();
+                
+                // 3a. Obere Kante des aktuellen Stacks (vorwärts)
+                for (let i = 0; i < currentPath.length; i++) {
+                    if (i === 0) {
+                        ctx.moveTo(currentPath[i].x, currentPath[i].y);
+                    } else {
+                        ctx.lineTo(currentPath[i].x, currentPath[i].y);
+                    }
+                }
+                
+                // 3b. Untere Kante des aktuellen Stacks (rückwärts)
+                if (yBottomPath.length > 0) {
+                    for (let i = yBottomPath.length - 1; i >= 0; i--) {
+                        ctx.lineTo(yBottomPath[i].x, yBottomPath[i].y);
+                    }
+                } else {
+                    ctx.lineTo(currentPath[currentPath.length - 1].x, height - padding);
+                    ctx.lineTo(currentPath[0].x, height - padding);
+                }
+                
+                ctx.closePath();
+                ctx.globalAlpha = 0.7;
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+
+                yBottomPath = currentPath;
+            }
+
+            // --- 4. Obere Gesamtleistungslinie zeichnen (optional, aber gut für Kontrast) ---
+            ctx.beginPath();
+            ctx.strokeStyle = '#dc2626'; // Rot (red-600)
+            ctx.lineWidth = 2;
+            for (let i = 0; i <= currentIndex; i++) {
+                const point = stackData[sourceKeys[sourceKeys.length - 1]][i];
+                if (i === 0) {
+                    ctx.moveTo(point.x, point.y);
+                } else {
+                    ctx.lineTo(point.x, point.y);
+                }
+            }
+            ctx.stroke();
+
+            // --- 5. Vertikale Markierung für das aktuelle Jahr ---
+            const currentYearX = getX(currentIndex);
+            const currentYear = animatedData[currentIndex].year;
+            const currentTotalY = stackData[sourceKeys[sourceKeys.length - 1]][currentIndex].y;
+
+            // Punkt am Ende der Kurve
+            ctx.fillStyle = '#fde047'; // yellow-400
+            ctx.beginPath();
+            ctx.arc(currentYearX, currentTotalY, 5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Vertikale Linie (gestrichelt)
+            ctx.strokeStyle = '#fde047';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([2, 4]);
+            ctx.beginPath();
+            ctx.moveTo(currentYearX, height - padding);
+            ctx.lineTo(currentYearX, padding);
+            ctx.stroke();
+
+            // Jahres-Text am unteren Rand der Markierung
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#fde047';
+            ctx.font = 'bold 12px Inter';
+            ctx.textAlign = 'center';
+            ctx.fillText(currentYear, currentYearX, height - 5);
+            
+            // --- 6. X-Achsen-Label (Jahre) zeichnen (wie vorher) ---
+            ctx.fillStyle = '#6b7280'; 
+            ctx.textAlign = 'left';
+            ctx.fillText(animatedData[0].year.toString(), padding, height - padding + 15);
+            ctx.textAlign = 'right';
+            ctx.fillText(animatedData[animatedData.length - 1].year.toString(), width - padding, height - padding + 15);
+
+        }
+
+
+        /**
+         * Verarbeitet das MouseMove-Event über dem Canvas, um den Tooltip anzuzeigen.
+         * @param {MouseEvent} event
+         */
+        function handleMouseMove(event) {
+            const { padding, width, height, scaleX, scaleY, sourceKeys } = chartMetrics;
+            
+            if (scaleX === 0 || animatedData.length === 0) {
+                hideTooltip();
+                return;
+            }
+
+            const rect = canvas.getBoundingClientRect();
+            // Mauskoordinaten relativ zum Canvas-Element
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+
+            // Prüfen, ob sich die Maus innerhalb der Diagrammfläche befindet (ohne Ränder)
+            if (mouseX < padding || mouseX > width - padding || mouseY < padding || mouseY > height - padding) {
+                hideTooltip();
+                return;
+            }
+
+            // 1. Jahr (Index) basierend auf X-Koordinate ermitteln
+            const yearIndexFloat = (mouseX - padding) / scaleX;
+            // Wir verwenden Math.round, um das nächstgelegene ganzzahlige Jahr zu ermitteln
+            const yearIndex = Math.min(Math.max(0, Math.round(yearIndexFloat)), animatedData.length - 1);
+            
+            const dataPoint = animatedData[yearIndex];
+            
+            // 2. MW-Wert basierend auf Y-Koordinate ermitteln
+            // MW = (height - padding - Y) / scaleY
+            const mwAtMouse = (height - padding - mouseY) / scaleY;
+
+            // 3. Energieträger innerhalb des Stacks identifizieren
+            let currentStackMw = 0;
+            let identifiedKey = null;
+            
+            // Durchlaufe die Quellen in der Reihenfolge, in der sie gestapelt wurden (von unten nach oben)
+            // (sourceKeys ist bereits sortiert: Wasserkraft (unten) bis Geothermie (oben))
+            for (const key of sourceKeys) {
+                const percentage = dataPoint.data[key] || 0;
+                const absoluteMw = dataPoint.totalMW * (percentage / 100);
+                
+                const stackTopMw = currentStackMw + absoluteMw;
+                
+                // Prüfen, ob der MW-Wert der Maus zwischen dem Boden und dem Deckel dieses Layers liegt
+                if (mwAtMouse <= stackTopMw && mwAtMouse >= currentStackMw) {
+                    identifiedKey = key;
+                    break;
+                }
+                
+                currentStackMw = stackTopMw;
+            }
+
+            if (identifiedKey) {
+                showTooltip(event, dataPoint, identifiedKey);
+            } else {
+                hideTooltip();
+            }
+        }
+
+        /**
+         * Zeigt den Tooltip mit den Daten an.
+         * @param {MouseEvent} event 
+         * @param {Object} dataPoint - Daten des gefundenen Jahres
+         * @param {string} key - Gefundener Energieträger-Schlüssel
+         */
+        function showTooltip(event, dataPoint, key) {
+            const config = sourceConfig[key];
+            const percentage = dataPoint.data[key] || 0;
+            const absoluteMw = dataPoint.totalMW * (percentage / 100);
+
+            // Formatierung
+            const formattedMw = Math.round(absoluteMw).toLocaleString('de-DE');
+            const formattedPercentage = percentage.toFixed(2);
+            
+            // Tooltip-Inhalt
+            chartTooltip.innerHTML = `
+                <div class="flex items-center space-x-2 pb-1 border-b border-gray-600 mb-1">
+                    <div class="w-3 h-3 rounded-full" style="background-color: ${config.hex};"></div>
+                    <span class="font-bold text-base">${config.label}</span>
+                </div>
+                <p>Jahr: ${dataPoint.year}</p>
+                <p>Anteil: ${formattedPercentage}%</p>
+                <p>Leistung: ${formattedMw} MW</p>
+            `;
+
+            // Tooltip positionieren
+            // Wir verwenden die Position relativ zum gesamten Dokument, abzüglich der Scroll-Position des Containers
+            const chartRect = canvas.getBoundingClientRect();
+            const posX = event.clientX;
+            const posY = event.clientY;
+            
+            chartTooltip.style.left = `${posX}px`;
+            chartTooltip.style.top = `${posY}px`;
+            chartTooltip.style.opacity = '1';
+            
+            // Positionierung im DOM-Baum anpassen, um über allem zu liegen
+            chartTooltip.parentElement.appendChild(chartTooltip);
+        }
+
+        /**
+         * Versteckt den Tooltip.
+         */
+        function hideTooltip() {
+            chartTooltip.style.opacity = '0';
+        }
+
+        /**
+         * Aktualisiert das gesamte Diagramm für das gegebene Jahr.
+         * @param {number} index - Der Index des Jahres im `animatedData`-Array.
+         */
+        function updateChart(index) {
+            const yearData = animatedData[index];
+            const year = yearData.year;
+            const totalMW = yearData.totalMW.toLocaleString('de-DE');
+
+            // 1. Daten in ein Array von Objekten umwandeln und nach Werten sortieren
+            const sortedData = Object.keys(yearData.data)
+                .map(key => ({ key, percentage: yearData.data[key] }))
+                .sort((a, b) => b.percentage - a.percentage); // Absteigend sortieren
+
+            // 2. Headerelemente aktualisieren
+            yearDisplay.textContent = year;
+            totalMwDisplay.textContent = totalMW;
+
+            // 3. Balken aktualisieren oder initialisieren
+            
+            if (index === 0) {
+                 // Beim ersten Frame müssen alle Balken initial erzeugt werden
+                 const initialLoadHtml = sortedData.map((item, rank) => 
+                    createBarHtml(item.key, item.percentage, rank + 1)
+                ).join('');
+                container.innerHTML = initialLoadHtml;
+            } else {
+                 // Für alle Folgejahre: Nur die Eigenschaften der bestehenden DOM-Elemente aktualisieren
+                sortedData.forEach((item, rank) => {
+                    const rankNumber = rank + 1;
+                    const barElement = document.getElementById(`bar-${item.key}`);
+                    
+                    if (barElement) {
+                        const fillElement = barElement.querySelector('.bar-fill');
+                        const rankElement = barElement.querySelector('span:first-child');
+                        const percentageElement = barElement.querySelector('span:last-child');
+
+                        if (fillElement) {
+                            const widthPercent = Math.max(item.percentage, 0.1);
+                            fillElement.style.width = `${widthPercent}%`;
+                        }
+                        if (rankElement) {
+                            rankElement.textContent = rankNumber;
+                        }
+                        if (percentageElement) {
+                            percentageElement.textContent = item.percentage.toFixed(1) + '%';
+                        }
+                        
+                        // Aktualisiere die CSS-Order-Eigenschaft für das Ranking (löst die Bewegung aus)
+                        barElement.style.order = rankNumber;
+                    } 
+                });
+            }
+            
+            // 4. Kurven-Diagramm aktualisieren
+            drawTotalMwCurve(index);
+        }
+
+        /**
+         * Beendet die Animationsschleife und aktualisiert die Button-Zustände.
+         */
+        function stopAnimation() {
+            if (timeoutHandle) clearTimeout(timeoutHandle);
+            if (animationFrame) cancelAnimationFrame(animationFrame);
+            isAnimating = false;
+            // Update button states
+            playButton.disabled = false;
+            stopButton.disabled = true;
+            console.log("Animation gestoppt.");
+        }
+        
+        /**
+         * Startet oder setzt die Animationsschleife fort.
+         */
+        function startAnimation() {
+            // Nur starten, wenn nicht bereits animiert wird UND noch Daten vorhanden sind
+            if (!isAnimating && yearIndex < animatedData.length) {
+                isAnimating = true;
+                
+                // Update button states
+                playButton.disabled = true;
+                stopButton.disabled = false;
+                resetButton.disabled = false;
+                
+                // Setze die Animation von der aktuellen Position fort
+                animationFrame = requestAnimationFrame(animate); 
+                console.log("Animation gestartet/fortgesetzt.");
+            } else if (yearIndex >= animatedData.length) {
+                // Wenn am Ende, starte neu
+                resetChart();
+            }
+        }
+
+
+        /**
+         * Führt einen Animationsschritt durch.
+         */
+        function animate() {
+            if (isAnimating) {
+                // Führe die Aktualisierung durch
+                updateChart(yearIndex);
+
+                // Gehe zum nächsten Jahr
+                yearIndex++;
+
+                // Wenn nicht alle Jahre durchlaufen wurden, warte und rufe die Funktion erneut auf
+                if (yearIndex < animatedData.length) {
+                    timeoutHandle = setTimeout(() => {
+                        animationFrame = requestAnimationFrame(animate);
+                    }, YEAR_DELAY_MS);
+                } else {
+                    // Animation beendet
+                    isAnimating = false;
+                    playButton.disabled = true; // Kann nicht weiter spielen
+                    stopButton.disabled = true; // Kann nicht gestoppt werden (bereits vorbei)
+                    resetButton.disabled = false; // Ermögliche Neustart am Ende
+                    console.log("Animation beendet.");
+                }
+            }
+        }
+
+        /**
+         * Setzt die Animation zurück und startet sie neu.
+         */
+        function resetChart() {
+            // Beende laufende Animation
+            stopAnimation();
+            
+            // Setze den Zustand zurück
+            yearIndex = 0;
+            isAnimating = true;
+            
+            // Update button states
+            playButton.disabled = true;
+            stopButton.disabled = false;
+            resetButton.disabled = true; // Deaktiviere Reset kurz, bis der erste Frame gesetzt ist.
+            
+            console.log("Animation neu gestartet.");
+            
+            // Setze den initialen Zustand
+            updateChart(0);
+            
+            // Starte die Schleife nach dem ersten Frame
+            yearIndex = 1;
+            timeoutHandle = setTimeout(() => {
+                resetButton.disabled = false;
+                animationFrame = requestAnimationFrame(animate);
+            }, YEAR_DELAY_MS);
+        }
+        
+        // Initialisierung
+        window.onload = () => {
+            // 1. Interpoliere die Rohdaten nur einmal beim Start
+            animatedData = interpolateData(rawData);
+            
+            // 2. Füge Mouse-Events für die Interaktivität hinzu
+            canvas.addEventListener('mousemove', handleMouseMove);
+            canvas.addEventListener('mouseout', hideTooltip);
+
+            // 3. Starte die Animation (ruft resetChart() auf)
+            resetChart(); 
+
+            // Event-Listener für responsive Anpassung der Canvas-Größe
+            window.addEventListener('resize', () => {
+                // Nur das Canvas neu zeichnen, ohne die Animation neu zu starten
+                if (animatedData.length > 0) {
+                     // Zeichne den letzten bekannten Index neu
+                     drawTotalMwCurve(yearIndex > 0 ? yearIndex - 1 : 0);
+                }
+            });
+        };
+    </script>
+</body>
+</html>

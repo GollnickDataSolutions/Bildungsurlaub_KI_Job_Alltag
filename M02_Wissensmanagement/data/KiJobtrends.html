@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strategieboard KI-Jobtrends 2025–2030</title>
+    <!-- Lade Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+        .card {
+            transition: all 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+        .info-panel {
+            z-index: 50; /* Über den Karten */
+            pointer-events: none; /* Klicks durchlassen */
+            transition: opacity 0.2s ease-in-out;
+        }
+        /* Custom scrollbar style for better aesthetics */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        <h1 class="text-3xl md:text-4xl font-bold text-gray-800 mb-6">KI-Jobtrends Strategieboard <span class="text-indigo-600">2025–2030</span></h1>
+        <p class="text-gray-600 mb-8">Interaktive Analyse der wichtigsten Entwicklungen und strategischen Maßnahmen.</v>
+
+        <!-- Filter-Sektion -->
+        <div id="filters" class="bg-white p-4 md:p-6 rounded-xl shadow-lg mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Filter-Dropdowns werden hier von JavaScript eingefügt -->
+        </div>
+
+        <!-- Trend-Karten Grid -->
+        <div id="trend-cards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 custom-scrollbar">
+            <!-- Trend-Karten werden hier von JavaScript gerendert -->
+        </div>
+
+        <!-- Info-Panel (Wird bei Hover dynamisch positioniert und angezeigt) -->
+        <div id="info-panel" class="info-panel fixed top-0 left-0 w-80 bg-white p-5 rounded-xl shadow-2xl border-t-4 border-indigo-500 opacity-0 invisible transition duration-300">
+            <!-- Inhalt wird per JS bei Hover befüllt -->
+            <h3 class="font-bold text-lg text-gray-800 mb-2" id="panel-category"></h3>
+            
+            <div class="space-y-4">
+                <section>
+                    <h4 class="font-semibold text-indigo-600 text-sm mb-1">Beschreibung</h4>
+                    <p class="text-gray-600 text-sm" id="panel-description"></p>
+                </section>
+                <section>
+                    <h4 class="font-semibold text-indigo-600 text-sm mb-1">Zentrale Treiber</h4>
+                    <p class="text-gray-600 text-sm" id="panel-drivers"></p>
+                </section>
+                <section>
+                    <h4 class="font-semibold text-indigo-600 text-sm mb-1">Wichtige Barrieren</h4>
+                    <p class="text-gray-600 text-sm" id="panel-barriers"></p>
+                </section>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Datensatz (basierend auf der bereitgestellten Quelle)
+        const trendsData = [
+            {
+                category: "Hybride Belegschaft & KI-Agenten",
+                description: "Übergang von einfachen KI-Tools zu autonomen KI-Agenten, die komplexe Aufgabenfolgen selbstständig planen und ausführen.",
+                drivers: "Fortschritte bei logischen Schlussfolgerungen (Reasoning) und multimodalen Fähigkeiten.",
+                barriers: "Festhalten an Prozessen, die für Menschen konzipiert wurden; mangelnde organisatorische Reife.",
+                adoptionRate: "Derzeit ca. 11% erfolgreiche Implementierung; starkes Wachstum bis 2030 erwartet.",
+                impact: "Transformation von Kernbereichen wie Kundenservice, IT und Finanzen; Entstehung einer „digitalen Belegschaft“.",
+                action: "Geschäftsprozesse für eine „KI-First“-Arbeitsweise von Grund auf neu gestalten.",
+            },
+            {
+                category: "Verschiebung der Berufsstruktur",
+                description: "Starke Zunahme der Nachfrage nach STEM/MINT- und Gesundheitsberufen bei gleichzeitigem Rückgang administrativer Rollen.",
+                drivers: "Alternde Bevölkerung, technologischer Fortschritt und Dekarbonisierungsziele.",
+                barriers: "Fachkräftemangel in Hochtechnologiesektoren; regionale Disparitäten (Stadt vs. Land).",
+                adoptionRate: "17-30% Nachfragesteigerung in STEM-Bereichen bis 2030 prognostiziert.",
+                impact: "Erhebliche Produktivitätsschübe; potenzielle Polarisierung des Arbeitsmarktes zwischen Hoch- und Niedriglohnsektor.",
+                action: "Proaktive Neupositionierung der Arbeitskräfte und Investition in Rekrutierungs-Strategien.",
+            },
+            {
+                category: "Skills-Revolution",
+                description: "Schnelle Entwertung alter und Bedarf an neuen Fähigkeiten; praktische KI-Kenntnisse ersetzen zunehmend formale Abschlüsse.",
+                drivers: "Rasante technologische Innovationskurven und steigende Datenkomplexität.",
+                barriers: "Fehlende interne Weiterbildungs-Strukturen; psychische Belastung durch Arbeitsverdichtung.",
+                adoptionRate: "59% der Belegschaft benötigen bis 2030 umfassende Umschulungen.",
+                impact: "Lohnaufschläge von bis zu 56% für KI-Spezialisierungen; Beschleunigung des Kompetenzwandels um den Faktor 2,5.",
+                action: "Einführung differenzierter Upskilling- und Reskilling-Programme für alle Mitarbeiterebenen.",
+            },
+            {
+                category: "Physische KI & Robotik",
+                description: "Integration von KI in physische Formen; Roboter werden zu adaptiven Systemen, die in menschlichen Räumen agieren.",
+                drivers: "Sinkende Hardwarekosten und Fortschritte in der Sensorik (Edge AI).",
+                barriers: "Hoher Investitionsbedarf für neue Infrastruktur; regulatorische und ethische Sicherheitsbedenken.",
+                adoptionRate: "Zunehmender Einsatz von Cobots und Exoskeletten in der industriellen Fertigung.",
+                impact: "Körperliche Entlastung der Belegschaft; Steigerung der Arbeitssicherheit und betrieblichen Effizienz.",
+                action: "Entwicklung einer Roadmap für physische Automatisierung; Schulung der Mensch-Maschine-Interaktion.",
+            },
+            {
+                category: "KI-Governance & Vertrauen",
+                description: "Fokus auf Transparenz, Erklärbarkeit und Sicherheit als Kernbestandteile der Jobprofile im IT- und Managementbereich.",
+                drivers: "Zunahme von Cyber-Bedrohungen durch KI; gesetzliche Vorgaben (z.B. EU AI Act).",
+                barriers: "„Black-Box“-Natur vieler KI-Modelle; mangelndes Vertrauen bei Mitarbeitern und Kunden.",
+                adoptionRate: "Bisher nutzen nur 39% der Führungskräfte Benchmarks zur KI-Bewertung.",
+                impact: "Vertrauen wird zum Markenzeichen („KI made in Germany“); Reduzierung von Cyber-Risiken.",
+                action: "Etablierung klarer ethischer Richtlinien und Überwachungsmechanismen für KI-Systeme.",
+            },
+        ];
+
+        // Die Schlüssel, die für die Filterung verwendet werden sollen
+        const filterKeys = {
+            category: 'Trendkategorie',
+            adoptionRate: 'Adoptionsrate',
+            impact: 'Geschäftliche Auswirkungen',
+            action: 'Empfohlene Maßnahme'
+        };
+
+        let activeFilters = {
+            category: 'all',
+            adoptionRate: 'all',
+            impact: 'all',
+            action: 'all'
+        };
+
+        const trendCardsContainer = document.getElementById('trend-cards');
+        const filtersContainer = document.getElementById('filters');
+        const infoPanel = document.getElementById('info-panel');
+
+        /**
+         * Erzeugt die Filter-Dropdowns basierend auf den eindeutigen Werten im Datensatz.
+         */
+        function renderFilters() {
+            filtersContainer.innerHTML = ''; // Vorherige Filter entfernen
+            
+            Object.keys(filterKeys).forEach(key => {
+                const uniqueValues = ['all', ...new Set(trendsData.map(item => item[key]))];
+                
+                const filterGroup = document.createElement('div');
+                filterGroup.className = 'flex flex-col space-y-1';
+                filterGroup.innerHTML = `
+                    <label for="${key}-filter" class="text-sm font-medium text-gray-700">${filterKeys[key]}</label>
+                    <select id="${key}-filter" data-filter-key="${key}" class="p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50 text-gray-800 transition duration-150 ease-in-out">
+                        <option value="all">Alle ${filterKeys[key]}</option>
+                        ${uniqueValues.map(value => 
+                            value !== 'all' ? `<option value="${value}">${value}</option>` : ''
+                        ).join('')}
+                    </select>
+                `;
+                filtersContainer.appendChild(filterGroup);
+            });
+
+            // Event Listener für alle Select-Elemente hinzufügen
+            filtersContainer.querySelectorAll('select').forEach(select => {
+                select.addEventListener('change', (event) => {
+                    const key = event.target.getAttribute('data-filter-key');
+                    activeFilters[key] = event.target.value;
+                    filterAndRenderTrends();
+                });
+            });
+        }
+
+
+        /**
+         * Wendet die aktiven Filter an und rendert die gefilterten Karten neu.
+         */
+        function filterAndRenderTrends() {
+            const filteredTrends = trendsData.filter(trend => {
+                return Object.keys(activeFilters).every(key => {
+                    const filterValue = activeFilters[key];
+                    return filterValue === 'all' || trend[key] === filterValue;
+                });
+            });
+
+            renderTrendCards(filteredTrends);
+        }
+
+        /**
+         * Erzeugt den HTML-Code für eine einzelne Trendkarte.
+         * @param {Object} trend - Das Trend-Objekt.
+         * @returns {string} - Der HTML-String der Karte.
+         */
+        function createCardHtml(trend) {
+            // Hilfsfunktion zur Zuweisung einer Farbe basierend auf der Kategorie
+            const getColor = (category) => {
+                switch (category) {
+                    case 'Hybride Belegschaft & KI-Agenten': return 'bg-indigo-100 border-indigo-500 text-indigo-800';
+                    case 'Verschiebung der Berufsstruktur': return 'bg-teal-100 border-teal-500 text-teal-800';
+                    case 'Skills-Revolution': return 'bg-yellow-100 border-yellow-500 text-yellow-800';
+                    case 'Physische KI & Robotik': return 'bg-purple-100 border-purple-500 text-purple-800';
+                    case 'KI-Governance & Vertrauen': return 'bg-red-100 border-red-500 text-red-800';
+                    default: return 'bg-gray-100 border-gray-500 text-gray-800';
+                }
+            };
+            const colorClasses = getColor(trend.category);
+
+            return `
+                <div 
+                    class="card bg-white p-6 rounded-xl shadow-md border-t-4 ${colorClasses.split(' ')[1]}"
+                    data-trend='${JSON.stringify(trend)}'
+                    onmouseenter="showInfoPanel(event, this)"
+                    onmouseleave="hideInfoPanel()"
+                >
+                    <div class="mb-4">
+                        <span class="inline-block px-3 py-1 text-xs font-semibold rounded-full ${colorClasses}">${trend.category}</span>
+                    </div>
+
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">${trend.action.substring(0, 60)}...</h3>
+                    
+                    <div class="space-y-3 text-sm text-gray-600">
+                        <div class="flex items-start">
+                            <span class="text-indigo-500 mr-2 min-w-[20px]">&#9889;</span>
+                            <p><span class="font-semibold">Adoptionsrate:</span> ${trend.adoptionRate}</p>
+                        </div>
+                        <div class="flex items-start">
+                            <span class="text-indigo-500 mr-2 min-w-[20px]">&#128187;</span>
+                            <p><span class="font-semibold">Auswirkungen:</span> ${trend.impact.substring(0, 80)}...</p>
+                        </div>
+                    </div>
+
+                    <p class="mt-4 text-xs font-medium text-indigo-600">Hovern für Details &rarr;</p>
+                </div>
+            `;
+        }
+
+        /**
+         * Rendert die übergebenen Trendkarten in den Container.
+         * @param {Array} trends - Array der Trend-Objekte.
+         */
+        function renderTrendCards(trends) {
+            trendCardsContainer.innerHTML = trends.map(createCardHtml).join('');
+            if (trends.length === 0) {
+                 trendCardsContainer.innerHTML = '<p class="text-center text-gray-500 col-span-full">Keine Trends gefunden, die den aktuellen Filtern entsprechen.</p>';
+            }
+        }
+
+        /**
+         * Zeigt das Info-Panel bei Hover über einer Karte an.
+         */
+        window.showInfoPanel = function(event, element) {
+            const trendData = JSON.parse(element.getAttribute('data-trend'));
+            
+            // Inhalt befüllen
+            document.getElementById('panel-category').textContent = trendData.category;
+            document.getElementById('panel-description').textContent = trendData.description;
+            document.getElementById('panel-drivers').textContent = trendData.drivers;
+            document.getElementById('panel-barriers').textContent = trendData.barriers;
+
+            // Panel sichtbar machen
+            infoPanel.classList.remove('opacity-0', 'invisible');
+
+            // Panel positionieren (folgt dem Mauszeiger oder ist nahe der Karte)
+            let x = event.clientX + 20;
+            let y = event.clientY + 20;
+            
+            // Anpassung, falls Panel außerhalb des Viewports rechts liegt
+            const panelWidth = infoPanel.offsetWidth;
+            const panelHeight = infoPanel.offsetHeight;
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+
+            if (x + panelWidth > viewportWidth - 20) {
+                // Verschiebe das Panel nach links vom Mauszeiger
+                x = event.clientX - panelWidth - 20;
+            }
+            if (y + panelHeight > viewportHeight - 20) {
+                // Verschiebe das Panel nach oben vom Mauszeiger
+                y = viewportHeight - panelHeight - 20;
+            }
+            
+            // Stelle sicher, dass x und y nicht negativ sind
+            x = Math.max(10, x);
+            y = Math.max(10, y);
+
+            infoPanel.style.left = `${x}px`;
+            infoPanel.style.top = `${y}px`;
+        };
+
+        /**
+         * Versteckt das Info-Panel bei mouseleave.
+         */
+        window.hideInfoPanel = function() {
+            infoPanel.classList.add('opacity-0', 'invisible');
+        };
+
+        // Initialisierung des Boards beim Laden der Seite
+        document.addEventListener('DOMContentLoaded', () => {
+            renderFilters();
+            filterAndRenderTrends();
+        });
+    </script>
+</body>
+</html>

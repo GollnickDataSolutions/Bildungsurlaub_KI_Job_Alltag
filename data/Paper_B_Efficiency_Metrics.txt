@@ -1,0 +1,6 @@
+Title: Productivity Gains via LLMs in Research (2026)
+Key Findings:
+- Researchers save 4 hours per week using AI for literature reviews.
+- Data accuracy remains high (94%) when human-in-the-loop is maintained.
+- Recommendation: Integration of AI into all research workflows.
+Methodology: Quantitative time-tracking study of 500 PhD candidates.

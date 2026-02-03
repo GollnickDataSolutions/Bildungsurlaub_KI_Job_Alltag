@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perfekt Elastische Kollisionssimulation</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #1a1a1a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: white;
+            touch-action: none; /* Verhindert Scrollen auf Mobile */
+        }
+
+        #canvas-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid #444;
+            backdrop-filter: blur(5px);
+            max-width: 300px;
+            pointer-events: auto;
+        }
+
+        h1 {
+            font-size: 1.2rem;
+            margin: 0 0 10px 0;
+            color: #4fd1c5;
+        }
+
+        .stats {
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+            color: #ccc;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        button {
+            background-color: #3182ce;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        button:hover {
+            background-color: #2b6cb0;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        button.secondary {
+            background-color: #4a5568;
+        }
+        
+        button.secondary:hover {
+            background-color: #2d3748;
+        }
+
+        .hint {
+            margin-top: 10px;
+            font-size: 0.8rem;
+            color: #888;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+<div id="canvas-container">
+    <canvas id="simCanvas"></canvas>
+    <div id="ui-layer">
+        <h1>Elastischer Raum</h1>
+        <div class="stats">
+            Kugeln: <span id="ballCount">0</span><br>
+            Gesamtenergie: <span id="energy">0</span> J
+        </div>
+        <div class="controls">
+            <button onclick="toggleGravity()" id="gravBtn">Schwerkraft: AUS</button>
+            <button onclick="addRandomBall()">+ Kugel hinzufügen</button>
+            <button class="secondary" onclick="resetSim()">Zurücksetzen</button>
+        </div>
+        <div class="hint">
+            Klicke & Ziehe, um eine Kugel zu werfen.<br>
+            Klicke leer, um eine zu erzeugen.
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    const ballCountSpan = document.getElementById('ballCount');
+    const energySpan = document.getElementById('energy');
+    const gravBtn = document.getElementById('gravBtn');
+
+    let width, height;
+    let balls = [];
+    let gravity = 0; // Standardmäßig 0 für "Weltraum"-Modus (keine Reibung/Energieverlust offensichtlicher)
+    const friction = 0; // Kein Luftwiderstand
+    const wallRestitution = 1; // Kein Energieverlust an Wänden
+
+    // Maus-Interaktion
+    let isDragging = false;
+    let dragStart = { x: 0, y: 0 };
+    let dragCurrent = { x: 0, y: 0 };
+
+    // Farben für die Kugeln
+    const colors = [
+        '#e53e3e', '#dd6b20', '#d69e2e', '#38a169', '#319795', 
+        '#3182ce', '#5a67d8', '#805ad5', '#d53f8c'
+    ];
+
+    class Ball {
+        constructor(x, y, vx, vy, radius) {
+            this.x = x;
+            this.y = y;
+            this.vx = vx;
+            this.vy = vy;
+            this.radius = radius;
+            this.color = colors[Math.floor(Math.random() * colors.length)];
+            // Masse proportional zur Fläche (oder r^3 für 3D, hier 2D r^2 ist intuitiver)
+            this.mass = radius * radius; 
+        }
+
+        draw() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+            
+            // Glanzlicht für 3D-Effekt
+            ctx.beginPath();
+            ctx.arc(this.x - this.radius * 0.3, this.y - this.radius * 0.3, this.radius / 3, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+            ctx.fill();
+            ctx.closePath();
+            
+            // Rand
+            ctx.strokeStyle = "rgba(0,0,0,0.3)";
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+
+        update() {
+            // Physik anwenden
+            this.vy += gravity;
+            this.vx *= (1 - friction);
+            this.vy *= (1 - friction);
+
+            this.x += this.vx;
+            this.y += this.vy;
+
+            // Wandkollisionen
+            // Rechts
+            if (this.x + this.radius > width) {
+                this.x = width - this.radius;
+                this.vx *= -wallRestitution;
+            }
+            // Links
+            else if (this.x - this.radius < 0) {
+                this.x = this.radius;
+                this.vx *= -wallRestitution;
+            }
+            // Unten
+            if (this.y + this.radius > height) {
+                this.y = height - this.radius;
+                this.vy *= -wallRestitution;
+            }
+            // Oben
+            else if (this.y - this.radius < 0) {
+                this.y = this.radius;
+                this.vy *= -wallRestitution;
+            }
+        }
+    }
+
+    function resize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+    }
+
+    function resolveCollision(b1, b2) {
+        const dx = b2.x - b1.x;
+        const dy = b2.y - b1.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance < b1.radius + b2.radius) {
+            // Überlappung korrigieren (wichtig damit sie nicht zusammenkleben)
+            const overlap = (distance - (b1.radius + b2.radius)) / 2; // negativ
+            const angle = Math.atan2(dy, dx);
+            
+            const moveX = overlap * Math.cos(angle);
+            const moveY = overlap * Math.sin(angle);
+
+            b1.x -= moveX;
+            b1.y -= moveY;
+            b2.x += moveX;
+            b2.y += moveY;
+
+            // Normalenvektor
+            const nx = dx / distance;
+            const ny = dy / distance;
+
+            // Tangentialvektor
+            const tx = -ny;
+            const ty = nx;
+
+            // Skalarprodukt Tangente
+            const dpTan1 = b1.vx * tx + b1.vy * ty;
+            const dpTan2 = b2.vx * tx + b2.vy * ty;
+
+            // Skalarprodukt Normale
+            const dpNorm1 = b1.vx * nx + b1.vy * ny;
+            const dpNorm2 = b2.vx * nx + b2.vy * ny;
+
+            // Impulserhaltung (1D elastischer Stoß entlang der Normalen)
+            const m1 = b1.mass;
+            const m2 = b2.mass;
+
+            const mom1 = (dpNorm1 * (m1 - m2) + 2 * m2 * dpNorm2) / (m1 + m2);
+            const mom2 = (dpNorm2 * (m2 - m1) + 2 * m1 * dpNorm1) / (m1 + m2);
+
+            // Geschwindigkeiten aktualisieren
+            b1.vx = tx * dpTan1 + nx * mom1;
+            b1.vy = ty * dpTan1 + ny * mom1;
+            b2.vx = tx * dpTan2 + nx * mom2;
+            b2.vy = ty * dpTan2 + ny * mom2;
+        }
+    }
+
+    function addRandomBall(x, y, vx, vy) {
+        const r = Math.random() * 15 + 10; // Radius 10-25
+        const px = x || Math.random() * (width - 2 * r) + r;
+        const py = y || Math.random() * (height - 2 * r) + r;
+        // Wenn keine Geschwindigkeit übergeben wurde, zufällige Geschwindigkeit
+        const pvx = vx !== undefined ? vx : (Math.random() - 0.5) * 10;
+        const pvy = vy !== undefined ? vy : (Math.random() - 0.5) * 10;
+        
+        balls.push(new Ball(px, py, pvx, pvy, r));
+        updateStats();
+    }
+
+    function resetSim() {
+        balls = [];
+        // Start mit einigen Kugeln
+        for(let i=0; i<5; i++) {
+            addRandomBall();
+        }
+    }
+
+    function toggleGravity() {
+        if (gravity === 0) {
+            gravity = 0.2; // Etwas Schwerkraft
+            gravBtn.innerText = "Schwerkraft: AN";
+            gravBtn.style.backgroundColor = "#2b6cb0"; // dunkleres blau
+        } else {
+            gravity = 0;
+            gravBtn.innerText = "Schwerkraft: AUS";
+            gravBtn.style.backgroundColor = "#3182ce";
+        }
+    }
+
+    function calculateTotalEnergy() {
+        let totalE = 0;
+        for (let b of balls) {
+            // Kinetische Energie = 0.5 * m * v^2
+            const v2 = b.vx * b.vx + b.vy * b.vy;
+            const kinE = 0.5 * b.mass * v2;
+            
+            // Potentielle Energie = m * g * h (nur relevant wenn Schwerkraft an)
+            // Höhe h ist Abstand vom Boden (height - y)
+            const potE = gravity > 0 ? b.mass * gravity * (height - b.y) : 0;
+            
+            totalE += kinE + potE;
+        }
+        return Math.round(totalE);
+    }
+
+    function updateStats() {
+        ballCountSpan.innerText = balls.length;
+    }
+
+    function animate() {
+        ctx.clearRect(0, 0, width, height);
+
+        // Grid im Hintergrund zeichnen (optional, für Raum-Gefühl)
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for(let i=0; i<width; i+=100) { ctx.moveTo(i,0); ctx.lineTo(i,height); }
+        for(let i=0; i<height; i+=100) { ctx.moveTo(0,i); ctx.lineTo(width,i); }
+        ctx.stroke();
+
+        // 1. Positionen aktualisieren
+        for (let i = 0; i < balls.length; i++) {
+            balls[i].update();
+        }
+
+        // 2. Kollisionen prüfen (O(n^2) - okay für kleine Anzahl < 500)
+        for (let i = 0; i < balls.length; i++) {
+            for (let j = i + 1; j < balls.length; j++) {
+                resolveCollision(balls[i], balls[j]);
+            }
+        }
+
+        // 3. Zeichnen
+        for (let b of balls) {
+            b.draw();
+        }
+        
+        // 4. Drag Linie zeichnen
+        if (isDragging) {
+            ctx.beginPath();
+            ctx.moveTo(dragStart.x, dragStart.y);
+            ctx.lineTo(dragCurrent.x, dragCurrent.y);
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+            ctx.setLineDash([5, 5]);
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // Kleiner Kreis am Start
+            ctx.beginPath();
+            ctx.arc(dragStart.x, dragStart.y, 5, 0, Math.PI*2);
+            ctx.fillStyle = "white";
+            ctx.fill();
+        }
+
+        // Energie Update (nicht jeden Frame für Performance, aber hier ok)
+        energySpan.innerText = calculateTotalEnergy().toLocaleString();
+
+        requestAnimationFrame(animate);
+    }
+
+    // Event Listeners
+    window.addEventListener('resize', resize);
+    
+    // Maus / Touch Eingabe für "Slingshot" Mechanik
+    canvas.addEventListener('mousedown', e => {
+        isDragging = true;
+        dragStart = { x: e.clientX, y: e.clientY };
+        dragCurrent = { x: e.clientX, y: e.clientY };
+    });
+
+    canvas.addEventListener('mousemove', e => {
+        if(isDragging) {
+            dragCurrent = { x: e.clientX, y: e.clientY };
+        }
+    });
+
+    canvas.addEventListener('mouseup', e => {
+        if(isDragging) {
+            isDragging = false;
+            const dx = dragStart.x - e.clientX;
+            const dy = dragStart.y - e.clientY;
+            
+            // Wenn nur geklickt wurde (sehr wenig Bewegung), einfach Kugel droppen
+            // Wenn gezogen wurde, mit Geschwindigkeit feuern
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            
+            if (dist < 10) {
+                addRandomBall(e.clientX, e.clientY, 0, 0);
+            } else {
+                // Skalierung der Kraft
+                addRandomBall(dragStart.x, dragStart.y, dx * 0.15, dy * 0.15);
+            }
+        }
+    });
+    
+    // Touch Support (Mobil)
+    canvas.addEventListener('touchstart', e => {
+        e.preventDefault();
+        isDragging = true;
+        const touch = e.touches[0];
+        dragStart = { x: touch.clientX, y: touch.clientY };
+        dragCurrent = { x: touch.clientX, y: touch.clientY };
+    }, {passive: false});
+
+    canvas.addEventListener('touchmove', e => {
+        e.preventDefault(); 
+        if(isDragging) {
+            const touch = e.touches[0];
+            dragCurrent = { x: touch.clientX, y: touch.clientY };
+        }
+    }, {passive: false});
+
+    canvas.addEventListener('touchend', e => {
+        e.preventDefault();
+        if(isDragging) {
+            isDragging = false;
+            const touch = e.changedTouches[0];
+            const dx = dragStart.x - touch.clientX;
+            const dy = dragStart.y - touch.clientY;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            
+            if (dist < 10) {
+                addRandomBall(dragStart.x, dragStart.y, 0, 0);
+            } else {
+                addRandomBall(dragStart.x, dragStart.y, dx * 0.15, dy * 0.15);
+            }
+        }
+    });
+
+    // Initialisierung
+    resize();
+    resetSim();
+    animate();
+
+</script>
+</body>
+</html>
